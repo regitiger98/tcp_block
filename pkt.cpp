@@ -11,7 +11,7 @@ uint16_t Cal_chksum(const u_char *data, uint16_t base, uint16_t len)
 	if(len % 2)
 	{
 		uint32_t tmp = (uint32_t)(*(uint8_t*)(data + len - 1));
-		sum += tmp;
+		sum += tmp << 8;
 	}
 	
 	sum = (sum >> 16) + (sum & 0xFFFF);
