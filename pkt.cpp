@@ -17,7 +17,7 @@ uint16_t Cal_chksum(const u_char *data, uint16_t base, uint16_t len)
 	sum = (sum >> 16) + (sum & 0xFFFF);
 	sum = (sum >> 16) + (sum & 0xFFFF);
 
-	return sum & 0xFFFF;
+	return (sum & 0xFFFF) ^ 0xFFFF;
 }
 
 uint16_t Check_pkt(const u_char *pkt, string block)
