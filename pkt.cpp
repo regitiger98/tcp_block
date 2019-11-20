@@ -10,7 +10,8 @@ uint16_t Cal_chksum(const u_char *data, uint16_t base, uint16_t len)
 
 	if(len % 2)
 	{
-		sum += (uint32_t)(*(uint8_t*)(data + len - 1));
+		uint32_t tmp = (uint32_t)(*(uint8_t*)(data + len - 1));
+		sum += tmp;
 	}
 	
 	sum = (sum >> 16) + (sum & 0xFFFF);
@@ -114,11 +115,11 @@ uint32_t Forward(const u_char *recv_pkt, const u_char *send_pkt, bool flag)
 	p_hdr.len = tcp_data_len;
 
 	uint16_t chksum = Cal_chksum((const u_char*)&p_hdr, 0, sizeof(p_hdr));
-	send_tcp_hdr->chksum = Cal_chksum((const u_char*)&send_tcp_hdr, chksum, 
-					  send_tcp_hdr->hdr_len * 4);
-
+	send_tcp_hdr->chksum = htons(Cal_chksum((const u_char*)&send_tcp_hdr, chksum, 
+					 	send_tcp_hdr->hdr_len * 4));
+	
 	send_ip_hdr->len = htons((send_ip_hdr->hdr_len + send_tcp_hdr->hdr_len) * 4);
-	send_ip_hdr->chksum = Cal_chksum((const u_char*)&send_ip_hdr, 0, send_ip_hdr->hdr_len);
+	send_ip_hdr->chksum = htons(Cal_chksum((const u_char*)&send_ip_hdr, 0, send_ip_hdr->hdr_len));
 
 	if(flag)
 	{
@@ -180,11 +181,11 @@ uint32_t Backward(const u_char *recv_pkt, const u_char *send_pkt, bool flag)
 	p_hdr.len = tcp_data_len;
 
 	uint16_t chksum = Cal_chksum((const u_char*)&p_hdr, 0, sizeof(p_hdr));
-	send_tcp_hdr->chksum = Cal_chksum((const u_char*)&send_tcp_hdr, chksum, 
-					  send_tcp_hdr->hdr_len * 4);
+	send_tcp_hdr->chksum = htons(Cal_chksum((const u_char*)&send_tcp_hdr, chksum, 
+					  	 send_tcp_hdr->hdr_len * 4));
 
 	send_ip_hdr->len = htons((send_ip_hdr->hdr_len + send_tcp_hdr->hdr_len) * 4);
-	send_ip_hdr->chksum = Cal_chksum((const u_char*)&send_ip_hdr, 0, send_ip_hdr->hdr_len);
+	send_ip_hdr->chksum = htons(Cal_chksum((const u_char*)&send_ip_hdr, 0, send_ip_hdr->hdr_len));
 
 	if(flag)
 	{
