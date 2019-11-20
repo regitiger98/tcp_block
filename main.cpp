@@ -34,7 +34,7 @@ int main(int argc, char* argv[]) {
 		uint16_t tcp_data_len = Check_pkt(pkt, host);
 		if(tcp_data_len == 0) continue;
 		cout << "Packet Blocked\n";
-		cout << "Chksum : " << Cal_chksum(pkt, 0, header->caplen) << endl;
+
 		const u_char *bw_pkt = (const u_char*)malloc(100);
 		uint32_t bw_len = Backward(pkt, bw_pkt, 0);
 		pcap_sendpacket(handle, bw_pkt, bw_len);
