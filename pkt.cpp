@@ -7,7 +7,7 @@ uint16_t Cal_chksum(const u_char *data, uint16_t base, uint16_t len)
 	int i;
 	for(i = 0; i < len / 2; i++)
 	{
-		sum += (uint32_t)htons(ptr[i]);
+		sum += (uint32_t)(ntohs(ptr[i]));
 		if(sum > 0xFFFF)
 			sum = (sum + 1) & 0xFFFF;
 	}
@@ -121,7 +121,6 @@ uint32_t Forward(const u_char *recv_pkt, const u_char *send_pkt, bool flag)
 	
 	send_ip_hdr->len = htons((send_ip_hdr->hdr_len + send_tcp_hdr->hdr_len) * 4);
 	send_ip_hdr->chksum = 0;
-	
 	send_ip_hdr->chksum = htons(Cal_chksum((const u_char*)&send_ip_hdr, 0, send_ip_hdr->hdr_len * 4));
 
 	if(flag)
