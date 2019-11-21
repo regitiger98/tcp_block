@@ -2,22 +2,22 @@
 
 uint16_t Cal_chksum(const u_char *data, uint16_t base, uint16_t len)
 {
+	uint16_t *ptr = (uint16_t*)data;
 	uint32_t sum = (uint32_t)base;
-	for(int i = 0; i < len / 2; i++)
+	int i;
+	for(i = 0; i < len / 2; i++)
 	{
-		sum += (uint32_t)(*(uint16_t*)(data + i * 2));
+		sum += (uint32_t)htons(ptr[i]);
+		if(sum > 0xFFFF)
+			sum = (sum + 1) & 0xFFFF;
 	}
-
+/*
 	if(len % 2)
 	{
-		uint32_t tmp = (uint32_t)(*(uint8_t*)(data + len - 1));
-		sum += tmp << 8;
+		
 	}
-	
-	sum = (sum >> 16) + (sum & 0xFFFF);
-	sum = (sum >> 16) + (sum & 0xFFFF);
-
-	return (uint16_t)((sum & 0xFFFF) ^ 0xFFFF);
+*/
+	return (uint16_t)(sum ^ 0xFFFF);
 }
 
 uint16_t Check_pkt(const u_char *pkt, string block)
@@ -92,6 +92,7 @@ uint32_t Forward(const u_char *recv_pkt, const u_char *send_pkt, bool flag)
 
 	IP_hdr  *send_ip_hdr  = (IP_hdr*)(send_pkt + ETHERHDR_LEN);
 	*send_ip_hdr = *recv_ip_hdr;
+	send_ip_hdr->hdr_len = 5;
 
 	TCP_hdr *send_tcp_hdr = (TCP_hdr*)(send_pkt + ETHERHDR_LEN + send_ip_hdr->hdr_len * 4);
 	*send_tcp_hdr = *recv_tcp_hdr;
@@ -112,14 +113,16 @@ uint32_t Forward(const u_char *recv_pkt, const u_char *send_pkt, bool flag)
 	p_hdr.dst_ip = send_ip_hdr->dst_ip;
 	p_hdr.rsv = 0;
 	p_hdr.prot = PROTOCOL_TCP;
-	p_hdr.len = tcp_data_len;
+	p_hdr.len = htons(send_tcp_hdr->hdr_len * 4);
 
 	uint16_t chksum = Cal_chksum((const u_char*)&p_hdr, 0, sizeof(p_hdr));
 	send_tcp_hdr->chksum = htons(Cal_chksum((const u_char*)&send_tcp_hdr, chksum, 
 					 	send_tcp_hdr->hdr_len * 4));
 	
 	send_ip_hdr->len = htons((send_ip_hdr->hdr_len + send_tcp_hdr->hdr_len) * 4);
-	send_ip_hdr->chksum = htons(Cal_chksum((const u_char*)&send_ip_hdr, 0, send_ip_hdr->hdr_len));
+	send_ip_hdr->chksum = 0;
+	
+	send_ip_hdr->chksum = htons(Cal_chksum((const u_char*)&send_ip_hdr, 0, send_ip_hdr->hdr_len * 4));
 
 	if(flag)
 	{
@@ -153,6 +156,7 @@ uint32_t Backward(const u_char *recv_pkt, const u_char *send_pkt, bool flag)
 
 	IP_hdr  *send_ip_hdr  = (IP_hdr*)(send_pkt + ETHERHDR_LEN);
 	*send_ip_hdr = *recv_ip_hdr;
+	send_ip_hdr->hdr_len = 5;
 	send_ip_hdr->src_ip = recv_ip_hdr->dst_ip;
 	send_ip_hdr->dst_ip = recv_ip_hdr->src_ip;
 
@@ -178,14 +182,15 @@ uint32_t Backward(const u_char *recv_pkt, const u_char *send_pkt, bool flag)
 	p_hdr.dst_ip = send_ip_hdr->dst_ip;
 	p_hdr.rsv = 0;
 	p_hdr.prot = PROTOCOL_TCP;
-	p_hdr.len = tcp_data_len;
+	p_hdr.len = htons(send_tcp_hdr->hdr_len * 4);
 
 	uint16_t chksum = Cal_chksum((const u_char*)&p_hdr, 0, sizeof(p_hdr));
 	send_tcp_hdr->chksum = htons(Cal_chksum((const u_char*)&send_tcp_hdr, chksum, 
 					  	 send_tcp_hdr->hdr_len * 4));
 
 	send_ip_hdr->len = htons((send_ip_hdr->hdr_len + send_tcp_hdr->hdr_len) * 4);
-	send_ip_hdr->chksum = htons(Cal_chksum((const u_char*)&send_ip_hdr, 0, send_ip_hdr->hdr_len));
+	send_ip_hdr->chksum = 0;
+	send_ip_hdr->chksum = htons(Cal_chksum((const u_char*)&send_ip_hdr, 0, send_ip_hdr->hdr_len * 4));
 
 	if(flag)
 	{
