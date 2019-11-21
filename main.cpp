@@ -28,8 +28,8 @@ int main(int argc, char* argv[]) {
 		if (res == 0) continue;
 		if (res == -1 || res == -2) break;
 
-		cout << "-------------------------------------------\n";
-		cout << "[+] " << header->caplen << " bytes captured\n";		
+		//cout << "-------------------------------------------\n";
+		//cout << "[+] " << header->caplen << " bytes captured\n";		
 
 		uint16_t tcp_data_len = Check_pkt(pkt, host);
 		if(tcp_data_len == 0) continue;

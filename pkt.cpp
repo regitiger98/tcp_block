@@ -1,10 +1,11 @@
 #include "pkt.h"
 
-uint16_t Cal_chksum(const u_char *data, uint16_t base, uint16_t len)
+uint16_t Cal_chksum(const u_char *data, uint16_t len)
 {
 	uint16_t *ptr = (uint16_t*)data;
-	uint32_t sum = (uint32_t)base;
+	uint32_t sum = 0;
 	int i;
+	
 	for(i = 0; i < len / 2; i++)
 	{
 		sum += (uint32_t)(ntohs(ptr[i]));
@@ -17,7 +18,7 @@ uint16_t Cal_chksum(const u_char *data, uint16_t base, uint16_t len)
 		
 	}
 */
-	return (uint16_t)(sum ^ 0xFFFF);
+	return (uint16_t)sum;
 }
 
 uint16_t Check_pkt(const u_char *pkt, string block)
@@ -25,14 +26,14 @@ uint16_t Check_pkt(const u_char *pkt, string block)
 	Eth_hdr *eth_hdr = (Eth_hdr*)pkt;
 	if(eth_hdr->eth_type != htons(ETHERTYPE_IP))
 	{
-		cout << "not IP\n";
+		// cout << "not IP\n";
 		return 0;
 	}
 		
 	IP_hdr *ip_hdr = (IP_hdr*)(pkt + ETHERHDR_LEN);
 	if(ip_hdr->prot != PROTOCOL_TCP)
 	{
-		cout << "not TCP\n";
+		// cout << "not TCP\n";
 		return 0;
 	}
 
@@ -40,7 +41,7 @@ uint16_t Check_pkt(const u_char *pkt, string block)
 	uint16_t tcp_data_len = ip_hdr->len - (ip_hdr->hdr_len + tcp_hdr->hdr_len) * 4;
 	if(tcp_data_len == 0)
 	{
-		cout << "no TCP data\n";
+		// cout << "no TCP data\n";
 		return 0;
 	}
 
@@ -55,14 +56,14 @@ uint16_t Check_pkt(const u_char *pkt, string block)
       	   tcp_data.substr(0, 6) != "DELETE" &&
      	   tcp_data.substr(0, 6) != "OPTION")
 	{
-		cout << "no HTTP method\n";
+		// cout << "no HTTP method\n";
 		return 0;
 	}
 	
 	size_t pos = tcp_data.find("Host: ");
 	if(pos == string::npos)
 	{
-		cout << "no \"Host: \" found\n";
+		// cout << "no \"Host: \" found\n";
 		return 0;
 	}
 	
@@ -115,13 +116,16 @@ uint32_t Forward(const u_char *recv_pkt, const u_char *send_pkt, bool flag)
 	p_hdr.prot = PROTOCOL_TCP;
 	p_hdr.len = htons(send_tcp_hdr->hdr_len * 4);
 
-	uint16_t chksum = Cal_chksum((const u_char*)&p_hdr, 0, sizeof(p_hdr));
-	send_tcp_hdr->chksum = htons(Cal_chksum((const u_char*)&send_tcp_hdr, chksum, 
-					 	send_tcp_hdr->hdr_len * 4));
+	uint16_t chksum1 = Cal_chksum((const u_char*)&p_hdr, sizeof(p_hdr));
+	uint16_t chksum2 = Cal_chksum((const u_char*)send_tcp_hdr, send_tcp_hdr->hdr_len * 4);
+	uint32_t tcp_chksum = chksum1 + chksum2;
+	if(tcp_chksum > 0xFFFF)
+		tcp_chksum = (tcp_chksum + 1) & 0xFFFF;
+	send_tcp_hdr->chksum = htons(tcp_chksum ^ 0xFFFF);
 	
 	send_ip_hdr->len = htons((send_ip_hdr->hdr_len + send_tcp_hdr->hdr_len) * 4);
 	send_ip_hdr->chksum = 0;
-	send_ip_hdr->chksum = htons(Cal_chksum((const u_char*)&send_ip_hdr, 0, send_ip_hdr->hdr_len * 4));
+	send_ip_hdr->chksum = htons(Cal_chksum((const u_char*)send_ip_hdr, send_ip_hdr->hdr_len * 4) ^ 0xFFFF);
 
 	if(flag)
 	{
@@ -158,6 +162,7 @@ uint32_t Backward(const u_char *recv_pkt, const u_char *send_pkt, bool flag)
 	send_ip_hdr->hdr_len = 5;
 	send_ip_hdr->src_ip = recv_ip_hdr->dst_ip;
 	send_ip_hdr->dst_ip = recv_ip_hdr->src_ip;
+	
 
 	TCP_hdr *send_tcp_hdr = (TCP_hdr*)(send_pkt + ETHERHDR_LEN + send_ip_hdr->hdr_len * 4);
 	*send_tcp_hdr = *recv_tcp_hdr;
@@ -183,13 +188,16 @@ uint32_t Backward(const u_char *recv_pkt, const u_char *send_pkt, bool flag)
 	p_hdr.prot = PROTOCOL_TCP;
 	p_hdr.len = htons(send_tcp_hdr->hdr_len * 4);
 
-	uint16_t chksum = Cal_chksum((const u_char*)&p_hdr, 0, sizeof(p_hdr));
-	send_tcp_hdr->chksum = htons(Cal_chksum((const u_char*)&send_tcp_hdr, chksum, 
-					  	 send_tcp_hdr->hdr_len * 4));
+	uint16_t chksum1 = Cal_chksum((const u_char*)&p_hdr, sizeof(p_hdr));
+	uint16_t chksum2 = Cal_chksum((const u_char*)send_tcp_hdr, send_tcp_hdr->hdr_len * 4);
+	uint32_t tcp_chksum = chksum1 + chksum2;
+	if(tcp_chksum > 0xFFFF)
+		tcp_chksum = (tcp_chksum + 1) & 0xFFFF;
+	send_tcp_hdr->chksum = htons(tcp_chksum ^ 0xFFFF);
 
 	send_ip_hdr->len = htons((send_ip_hdr->hdr_len + send_tcp_hdr->hdr_len) * 4);
 	send_ip_hdr->chksum = 0;
-	send_ip_hdr->chksum = htons(Cal_chksum((const u_char*)&send_ip_hdr, 0, send_ip_hdr->hdr_len * 4));
+	send_ip_hdr->chksum = htons(Cal_chksum((const u_char*)send_ip_hdr, send_ip_hdr->hdr_len * 4) ^ 0xFFFF);
 
 	if(flag)
 	{
@@ -202,6 +210,3 @@ uint32_t Backward(const u_char *recv_pkt, const u_char *send_pkt, bool flag)
 	
 	return ETHERHDR_LEN + send_ip_hdr->hdr_len * 4 + send_tcp_hdr->hdr_len * 4;
 }
-
-
-
