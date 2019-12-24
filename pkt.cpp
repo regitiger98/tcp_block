@@ -12,12 +12,14 @@ uint16_t Cal_chksum(const u_char *data, uint16_t len)
 		if(sum > 0xFFFF)
 			sum = (sum + 1) & 0xFFFF;
 	}
-/*
+
 	if(len % 2)
 	{
-		
+		sum += (uint32_t)(ntohs(ptr[i]) & 0xFF00);
+		if(sum > 0xFFFF)
+			sum = (sum + 1) & 0xFFFF;
 	}
-*/
+
 	return (uint16_t)sum;
 }
 
@@ -141,8 +143,7 @@ uint32_t Forward(const u_char *recv_pkt, const u_char *send_pkt, bool flag)
 
 uint32_t Backward(const u_char *recv_pkt, const u_char *send_pkt, bool flag)
 {
-
-	const u_char msg[10] = "bye bye!";
+	u_char msg[100] = "HTTP/1.1 301 Moved Permanently\r\nContent-length: 0\r\nLocation: https://warning.co.kr/\r\n\r\n";
 	
 	Eth_hdr *recv_eth_hdr = (Eth_hdr*)recv_pkt;
 	IP_hdr 	*recv_ip_hdr  = (IP_hdr*)(recv_pkt + ETHERHDR_LEN);
@@ -178,26 +179,12 @@ uint32_t Backward(const u_char *recv_pkt, const u_char *send_pkt, bool flag)
 	send_tcp_hdr->rst = 0;
 	send_tcp_hdr->syn = 0;
 	send_tcp_hdr->fin = 0;
-	if(flag)	send_tcp_hdr->fin = 1;
+	if(flag)	
+	{
+		send_tcp_hdr->fin = 1;
+		//send_tcp_hdr->psh = 1;
+	}	
 	else 		send_tcp_hdr->rst = 1;
-
-	Pseudo_hdr p_hdr;
-	p_hdr.src_ip = send_ip_hdr->src_ip;
-	p_hdr.dst_ip = send_ip_hdr->dst_ip;
-	p_hdr.rsv = 0;
-	p_hdr.prot = PROTOCOL_TCP;
-	p_hdr.len = htons(send_tcp_hdr->hdr_len * 4);
-
-	uint16_t chksum1 = Cal_chksum((const u_char*)&p_hdr, sizeof(p_hdr));
-	uint16_t chksum2 = Cal_chksum((const u_char*)send_tcp_hdr, send_tcp_hdr->hdr_len * 4);
-	uint32_t tcp_chksum = chksum1 + chksum2;
-	if(tcp_chksum > 0xFFFF)
-		tcp_chksum = (tcp_chksum + 1) & 0xFFFF;
-	send_tcp_hdr->chksum = htons(tcp_chksum ^ 0xFFFF);
-
-	send_ip_hdr->len = htons((send_ip_hdr->hdr_len + send_tcp_hdr->hdr_len) * 4);
-	send_ip_hdr->chksum = 0;
-	send_ip_hdr->chksum = htons(Cal_chksum((const u_char*)send_ip_hdr, send_ip_hdr->hdr_len * 4) ^ 0xFFFF);
 
 	if(flag)
 	{
@@ -205,8 +192,39 @@ uint32_t Backward(const u_char *recv_pkt, const u_char *send_pkt, bool flag)
 							 send_ip_hdr->hdr_len * 4 + 
 							 send_tcp_hdr->hdr_len * 4);
 		memcpy((void*)tcp_data, (const void*)msg, MSG_LEN);
-		return ETHERHDR_LEN + send_ip_hdr->hdr_len * 4 + send_tcp_hdr->hdr_len * 4 + MSG_LEN;
+		
 	}
+	
+	if(flag)
+		send_ip_hdr->len = htons((send_ip_hdr->hdr_len + send_tcp_hdr->hdr_len) * 4 + MSG_LEN);
+	else
+		send_ip_hdr->len = htons((send_ip_hdr->hdr_len + send_tcp_hdr->hdr_len) * 4);
+	send_ip_hdr->chksum = 0;
+	send_ip_hdr->chksum = htons(Cal_chksum((const u_char*)send_ip_hdr, send_ip_hdr->hdr_len * 4) ^ 0xFFFF);
+
+	Pseudo_hdr p_hdr;
+	p_hdr.src_ip = send_ip_hdr->src_ip;
+	p_hdr.dst_ip = send_ip_hdr->dst_ip;
+	p_hdr.rsv = 0;
+	p_hdr.prot = PROTOCOL_TCP;
+	if(flag)
+		p_hdr.len = htons(send_tcp_hdr->hdr_len * 4 + MSG_LEN);
+	else
+		p_hdr.len = htons(send_tcp_hdr->hdr_len * 4);
+
+	uint16_t chksum1 = Cal_chksum((const u_char*)&p_hdr, sizeof(p_hdr));
+	uint16_t chksum2;
+	if(flag)
+		chksum2 = Cal_chksum((const u_char*)send_tcp_hdr, send_tcp_hdr->hdr_len * 4 + MSG_LEN);
+	else
+		chksum2 = Cal_chksum((const u_char*)send_tcp_hdr, send_tcp_hdr->hdr_len * 4);
+	uint32_t tcp_chksum = chksum1 + chksum2;
+	if(tcp_chksum > 0xFFFF)
+		tcp_chksum = (tcp_chksum + 1) & 0xFFFF;
+	send_tcp_hdr->chksum = htons(tcp_chksum ^ 0xFFFF);
+
+	if(flag)
+		return ETHERHDR_LEN + send_ip_hdr->hdr_len * 4 + send_tcp_hdr->hdr_len * 4 + MSG_LEN;
 	
 	return ETHERHDR_LEN + send_ip_hdr->hdr_len * 4 + send_tcp_hdr->hdr_len * 4;
 }
